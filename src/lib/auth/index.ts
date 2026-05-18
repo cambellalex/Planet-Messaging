@@ -1,37 +1,7 @@
-/**
- * AUTH MODULE
- * ============================================================
- * Handles user authentication, session management, and
- * organisation (multi-tenant) account creation.
- *
- * SETUP:
- *   npm install next-auth bcryptjs @prisma/client prisma
- *   Set environment variables:
- *     DATABASE_URL          — PostgreSQL connection string
- *     NEXTAUTH_SECRET       — random 32-byte secret (openssl rand -hex 32)
- *     NEXTAUTH_URL          — public URL of the app
- *
- * ARCHITECTURE:
- *   - Uses NextAuth.js (Auth.js v5) for session management
- *   - Credentials provider for email+password
- *   - Prisma adapter for database sessions
- *   - bcrypt for password hashing (cost factor 12)
- *
- * FUNCTIONS IMPLEMENTED HERE:
- *   - hashPassword(plain)         → bcrypt hash
- *   - verifyPassword(plain, hash) → boolean
- *   - createUser(data)            → creates org + user atomically
- *   - getSession()                → server-side session helper
- *   - requireAuth()               → throws if not authenticated
- *
- * FUTURE:
- *   - OAuth providers (Google Workspace, Microsoft 365)
- *   - SAML / SSO for enterprise customers
- *   - TOTP-based MFA
- *   - API key management for programmatic access
- *
- * ============================================================
- */
+import bcrypt from 'bcryptjs';
+import type { PrismaClient } from '@prisma/client';
+
+type PrismaTx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 export interface User {
   id: string;
@@ -58,40 +28,36 @@ export interface CreateUserInput {
   companyName: string;
 }
 
-/**
- * Hashes a plaintext password using bcrypt (cost=12).
- * Never store plaintext passwords.
- */
-export async function hashPassword(_plain: string): Promise<string> {
-  // const bcrypt = await import('bcryptjs');
-  // return bcrypt.hash(_plain, 12);
-  throw new Error('hashPassword: bcryptjs not installed. Run: npm install bcryptjs');
+export async function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, 12);
 }
 
-/**
- * Compares a plaintext password against a stored bcrypt hash.
- */
-export async function verifyPassword(_plain: string, _hash: string): Promise<boolean> {
-  // const bcrypt = await import('bcryptjs');
-  // return bcrypt.compare(_plain, _hash);
-  throw new Error('verifyPassword: bcryptjs not installed.');
+export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(plain, hash);
 }
 
 /**
  * Atomically creates an organisation and its first owner user.
- * Wraps both inserts in a Prisma transaction.
+ * Requires DATABASE_URL to be set and `npx prisma migrate dev` to have been run.
  */
-export async function createUser(_input: CreateUserInput): Promise<{ user: User; org: Organisation }> {
-  // const { db } = await import('@/lib/db');
-  // return db.$transaction(async (tx) => {
-  //   const org = await tx.organisation.create({ data: { name: _input.companyName } });
-  //   const hash = await hashPassword(_input.password);
-  //   const user = await tx.user.create({
-  //     data: { email: _input.email, firstName: _input.firstName,
-  //             lastName: _input.lastName, passwordHash: hash,
-  //             organisationId: org.id, role: 'owner' },
-  //   });
-  //   return { user, org };
-  // });
-  throw new Error('createUser: database not configured.');
+export async function createUser(input: CreateUserInput): Promise<{ user: User; org: Organisation }> {
+  const { db } = await import('@/lib/db');
+  return db.$transaction(async (tx: PrismaTx) => {
+    const org = await tx.organisation.create({ data: { name: input.companyName } });
+    const hash = await hashPassword(input.password);
+    const user = await tx.user.create({
+      data: {
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        passwordHash: hash,
+        organisationId: org.id,
+        role: 'owner',
+      },
+    });
+    return {
+      user: { ...user, role: user.role as User['role'] },
+      org: { ...org, plan: org.plan as Organisation['plan'] },
+    };
+  });
 }

@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+
+  users    User[]
+  messages Message[]
+  channels Channel[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  firstName      String
+  lastName       String
+  passwordHash   String
+  role           String   @default("member")
+  organisationId String
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+}
+
+model Contact {
+  id             String   @id @default(cuid())
+  name           String
+  phone          String?
+  email          String?
+  tags           String[]
+  organisationId String
+  createdAt      DateTime @default(now())
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  direction      String
+  channel        String
+  from           String
+  to             String
+  body           String
+  status         String   @default("queued")
+  twilioSid      String?
+  organisationId String
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+}
+
+model Channel {
+  id             String   @id @default(cuid())
+  type           String
+  status         String   @default("disconnected")
+  credentials    Json
+  organisationId String
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+}
