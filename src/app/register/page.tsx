@@ -7,6 +7,7 @@
  */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { MessageCircle, Eye, EyeOff, Check } from 'lucide-react';
 
@@ -17,17 +18,56 @@ const passwordRules = [
 ];
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const confirmPassword = formData.get('confirmPassword');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (!passwordRules.every((rule) => rule.test(password))) {
+      setError('Please satisfy all password requirements.');
+      return;
+    }
+
     setLoading(true);
-    // TODO: call POST /api/auth/register
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    // TODO: redirect to /inbox or email-verification page
+
+    const payload = {
+      firstName: formData.get('firstName'),
+      lastName: formData.get('lastName'),
+      companyName: formData.get('company'),
+      email: formData.get('email'),
+      password,
+    };
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? 'Unable to create your account. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      router.push('/inbox');
+    } catch {
+      setError('Unable to reach the server. Please try again.');
+      setLoading(false);
+    }
   }
 
   return (
@@ -51,6 +91,16 @@ export default function RegisterPage() {
             Sign in
           </Link>
         </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="text-sm mb-4 px-3 py-2 rounded-lg border"
+            style={{ color: '#ef4444', borderColor: '#ef4444', background: 'rgba(239, 68, 68, 0.08)' }}
+          >
+            {error}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
@@ -154,6 +204,21 @@ export default function RegisterPage() {
                 ))}
               </ul>
             )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="confirmPassword" className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+              Confirm password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type={showPassword ? 'text' : 'password'}
+              required
+              placeholder="••••••••"
+              className="w-full px-4 py-2.5 rounded-xl border text-sm outline-none"
+              style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
           </div>
 
           <label className="flex items-start gap-2 cursor-pointer mt-1">

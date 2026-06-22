@@ -7,20 +7,44 @@
  */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { MessageCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     setLoading(true);
-    // TODO: call POST /api/auth/login
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    // TODO: redirect to /inbox on success
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email');
+    const password = formData.get('password');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? 'Unable to sign in. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      router.push('/inbox');
+    } catch {
+      setError('Unable to reach the server. Please try again.');
+      setLoading(false);
+    }
   }
 
   return (
@@ -45,6 +69,16 @@ export default function LoginPage() {
             Create one free
           </Link>
         </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="text-sm mb-4 px-3 py-2 rounded-lg border"
+            style={{ color: '#ef4444', borderColor: '#ef4444', background: 'rgba(239, 68, 68, 0.08)' }}
+          >
+            {error}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

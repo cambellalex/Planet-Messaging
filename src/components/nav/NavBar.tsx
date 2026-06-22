@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Menu, X, MessageCircle } from 'lucide-react';
 
@@ -9,7 +10,13 @@ interface NavBarProps {
 }
 
 export default function NavBar({ variant = 'home' }: NavBarProps) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  async function handleSignOut() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  }
 
   const appLinks = [
     { href: '/inbox', label: 'Inbox' },
@@ -66,13 +73,14 @@ export default function NavBar({ variant = 'home' }: NavBarProps) {
               </>
             )}
             {variant === 'app' && (
-              <Link
-                href="/login"
+              <button
+                type="button"
+                onClick={handleSignOut}
                 className="text-sm font-medium px-4 py-2 rounded-lg border transition-colors hover:opacity-80"
                 style={{ color: 'var(--muted)', borderColor: 'var(--border)' }}
               >
                 Sign out
-              </Link>
+              </button>
             )}
           </div>
 
@@ -91,18 +99,32 @@ export default function NavBar({ variant = 'home' }: NavBarProps) {
       {/* Mobile drawer */}
       {menuOpen && (
         <div className="md:hidden px-4 pb-4 border-t" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-          {variant === 'app' &&
-            appLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="block py-3 text-sm font-medium border-b last:border-0"
-                style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
-                onClick={() => setMenuOpen(false)}
+          {variant === 'app' && (
+            <>
+              {appLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="block py-3 text-sm font-medium border-b"
+                  style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {l.label}
+                </Link>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  handleSignOut();
+                }}
+                className="block w-full text-left py-3 text-sm font-medium"
+                style={{ color: 'var(--muted)' }}
               >
-                {l.label}
-              </Link>
-            ))}
+                Sign out
+              </button>
+            </>
+          )}
           {variant === 'home' && (
             <>
               <Link href="/explore" className="block py-3 text-sm border-b" style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}>

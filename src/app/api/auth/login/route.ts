@@ -3,17 +3,22 @@
  *
  * Body: { email, password }
  *
- * 1. Looks up user by email
- * 2. Verifies password hash with verifyPassword()
- * 3. Creates a signed JWT session (or NextAuth session)
- * 4. Sets HttpOnly session cookie
- * 5. Returns { userId, orgId }
+ * 1. Rate-limits repeated attempts per IP+email
+ * 2. Looks up user by email and verifies password with verifyPassword()
+ * 3. Creates a signed session cookie
+ * 4. Returns { userId, orgId }
+ *
+ * Always returns a generic "invalid credentials" error so the response
+ * cannot be used to enumerate which emails have an account.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-// import { verifyPassword } from '@/lib/auth';
-// import { db } from '@/lib/db';
-// import { signJwt } from '@/lib/auth/jwt';
+import { verifyPassword } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { createSession } from '@/lib/auth/session';
+import { checkLoginRateLimit, resetLoginRateLimit } from '@/lib/auth/rate-limit';
+
+const INVALID_CREDENTIALS = { error: 'Invalid email or password.' };
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,16 +28,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
     }
 
-    // const user = await db.user.findUnique({ where: { email } });
-    // if (!user) return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
-    // const valid = await verifyPassword(password, user.passwordHash);
-    // if (!valid) return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
-    // const token = signJwt({ userId: user.id, orgId: user.organisationId });
-    // const res = NextResponse.json({ userId: user.id });
-    // res.cookies.set('session', token, { httpOnly: true, sameSite: 'lax', secure: true, maxAge: 60*60*24*7 });
-    // return res;
+    const normalisedEmail = email.trim().toLowerCase();
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const rateLimitKey = `${ip}:${normalisedEmail}`;
 
-    return NextResponse.json({ userId: `stub_${Date.now()}` });
+    const { allowed, retryAfterMs } = checkLoginRateLimit(rateLimitKey);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } },
+      );
+    }
+
+    const user = await db.user.findUnique({ where: { email: normalisedEmail } });
+    if (!user) {
+      return NextResponse.json(INVALID_CREDENTIALS, { status: 401 });
+    }
+
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) {
+      return NextResponse.json(INVALID_CREDENTIALS, { status: 401 });
+    }
+
+    resetLoginRateLimit(rateLimitKey);
+    await createSession(user.id, user.organisationId);
+
+    return NextResponse.json({ userId: user.id, orgId: user.organisationId });
   } catch (err) {
     console.error('[/api/auth/login]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
