@@ -1,7 +1,4 @@
 import bcrypt from 'bcryptjs';
-import type { PrismaClient } from '@prisma/client';
-
-type PrismaTx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 export interface User {
   id: string;
@@ -36,13 +33,9 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   return bcrypt.compare(plain, hash);
 }
 
-/**
- * Atomically creates an organisation and its first owner user.
- * Requires DATABASE_URL to be set and `npx prisma migrate dev` to have been run.
- */
 export async function createUser(input: CreateUserInput): Promise<{ user: User; org: Organisation }> {
   const { db } = await import('@/lib/db');
-  return db.$transaction(async (tx: PrismaTx) => {
+  return db.$transaction(async (tx) => {
     const org = await tx.organisation.create({ data: { name: input.companyName } });
     const hash = await hashPassword(input.password);
     const user = await tx.user.create({
