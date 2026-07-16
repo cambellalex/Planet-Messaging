@@ -28,6 +28,7 @@ export default function SendPage() {
   const [to, setTo] = useState('');
   const [body, setBody] = useState('');
   const [status, setStatus] = useState<Status>('idle');
+  const [error, setError] = useState<string>('');
 
   const isSms = channel === 'sms';
   const remaining = SMS_LIMIT - body.length;
@@ -36,11 +37,26 @@ export default function SendPage() {
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     setStatus('sending');
-    // TODO: POST /api/messages/send  { channel, to, body }
-    // Twilio module handles delivery and returns messageId + status.
-    await new Promise((r) => setTimeout(r, 1200));
-    setStatus('success');
-    setTimeout(() => setStatus('idle'), 3000);
+    try {
+      const res = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, to, body }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? 'Failed to send message');
+        setStatus('error');
+        return;
+      }
+      setStatus('success');
+      setTo('');
+      setBody('');
+      setTimeout(() => setStatus('idle'), 3000);
+    } catch {
+      setError('Network error — please try again');
+      setStatus('error');
+    }
   }
 
   return (
@@ -136,7 +152,7 @@ export default function SendPage() {
           )}
           {status === 'error' && (
             <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
-              <AlertCircle className="w-4 h-4" /> Failed to send. Please try again.
+              <AlertCircle className="w-4 h-4" /> {error || 'Failed to send. Please try again.'}
             </div>
           )}
 
