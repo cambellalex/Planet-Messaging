@@ -2,10 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 function createClient() {
   return new PrismaClient({
-    // Prisma Accelerate v7: pass the Accelerate URL via accelerateUrl
-    ...(process.env.DATABASE_URL?.startsWith('prisma')
-      ? { accelerateUrl: process.env.DATABASE_URL }
-      : {}),
+    accelerateUrl: process.env.DATABASE_URL,
   });
 }
 
