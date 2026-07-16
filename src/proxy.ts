@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decrypt } from '@/lib/auth/session';
+import { decrypt } from '@/lib/auth/session-edge';
 
 const PROTECTED_ROUTES = ['/inbox', '/send', '/contacts', '/channels'];
 const AUTH_ROUTES = ['/login', '/register'];
