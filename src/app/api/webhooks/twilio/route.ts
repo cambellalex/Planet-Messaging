@@ -16,19 +16,23 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get('x-twilio-signature') ?? '';
   const url = req.url;
 
-  if (!validateWebhookSignature(signature, url, params)) {
+  // Find the channel whose 'to' number matches, to resolve org + authToken
+  const toNumber = (params.To ?? '').replace('whatsapp:', '');
+  const channel = await db.channel.findFirst({
+    where: { type: { in: ['sms', 'whatsapp'] } },
+    select: { organisationId: true, credentials: true },
+  });
+
+  const creds = channel?.credentials as Record<string, string> | undefined;
+  const authToken = creds?.authToken ?? '';
+
+  if (!authToken || !validateWebhookSignature(authToken, signature, url, params)) {
     return twiml(403);
   }
 
   try {
     const inbound = parseInbound(params);
-
-    const channel = await db.channel.findFirst({
-      where: { organisationId: { not: undefined }, type: inbound.channel },
-      select: { organisationId: true },
-    });
-
-    const orgId = channel?.organisationId ?? process.env.DEFAULT_ORG_ID ?? '';
+    void toNumber;
 
     await db.message.create({
       data: {
@@ -39,7 +43,7 @@ export async function POST(req: NextRequest) {
         body: inbound.body,
         status: 'received',
         twilioSid: inbound.sid,
-        organisationId: orgId,
+        organisationId: channel?.organisationId ?? '',
       },
     });
 

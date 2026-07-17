@@ -1,16 +1,9 @@
 import twilio from 'twilio';
 
-function getClient() {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token) throw new Error('TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set.');
-  return twilio(sid, token);
-}
-
-function getFromNumber(channel: 'sms' | 'whatsapp'): string {
-  const from = process.env.TWILIO_FROM_NUMBER;
-  if (!from) throw new Error('TWILIO_FROM_NUMBER must be set.');
-  return channel === 'whatsapp' ? `whatsapp:${from}` : from;
+export interface TwilioCredentials {
+  accountSid: string;
+  authToken: string;
+  fromNumber: string;
 }
 
 export interface SendResult {
@@ -18,19 +11,17 @@ export interface SendResult {
   status: string;
 }
 
-export async function sendSms(to: string, body: string): Promise<SendResult> {
-  const msg = await getClient().messages.create({
-    to,
-    from: getFromNumber('sms'),
-    body,
-  });
+export async function sendSms(creds: TwilioCredentials, to: string, body: string): Promise<SendResult> {
+  const client = twilio(creds.accountSid, creds.authToken);
+  const msg = await client.messages.create({ to, from: creds.fromNumber, body });
   return { sid: msg.sid, status: msg.status };
 }
 
-export async function sendWhatsApp(to: string, body: string): Promise<SendResult> {
-  const msg = await getClient().messages.create({
+export async function sendWhatsApp(creds: TwilioCredentials, to: string, body: string): Promise<SendResult> {
+  const client = twilio(creds.accountSid, creds.authToken);
+  const msg = await client.messages.create({
     to: `whatsapp:${to}`,
-    from: getFromNumber('whatsapp'),
+    from: `whatsapp:${creds.fromNumber}`,
     body,
   });
   return { sid: msg.sid, status: msg.status };
@@ -46,13 +37,12 @@ export interface InboundMessage {
 }
 
 export function validateWebhookSignature(
+  authToken: string,
   signature: string,
   url: string,
   params: Record<string, string>,
 ): boolean {
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!token) return false;
-  return twilio.validateRequest(token, signature, url, params);
+  return twilio.validateRequest(authToken, signature, url, params);
 }
 
 export function parseInbound(params: Record<string, string>): InboundMessage {

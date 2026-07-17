@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionPayload } from '@/lib/auth/session';
-import { sendSms, sendWhatsApp } from '@/lib/twilio';
+import { sendSms, sendWhatsApp, type TwilioCredentials } from '@/lib/twilio';
 import { db } from '@/lib/db';
+
+async function getTwilioCreds(orgId: string): Promise<TwilioCredentials | null> {
+  const channel = await db.channel.findFirst({
+    where: { organisationId: orgId, type: 'sms' },
+    select: { credentials: true },
+  });
+  if (!channel) return null;
+  const c = channel.credentials as Record<string, string>;
+  if (!c.accountSid || !c.authToken || !c.fromNumber) return null;
+  return { accountSid: c.accountSid, authToken: c.authToken, fromNumber: c.fromNumber };
+}
 
 export async function POST(req: NextRequest) {
   const session = await getSessionPayload();
@@ -20,18 +31,25 @@ export async function POST(req: NextRequest) {
   if (!channel || !to || !text) {
     return NextResponse.json({ error: 'channel, to, and body are required' }, { status: 400 });
   }
-
   if (text.length > 1600) {
     return NextResponse.json({ error: 'Message body too long (max 1600 chars)' }, { status: 400 });
+  }
+
+  const creds = await getTwilioCreds(session.orgId);
+  if (!creds) {
+    return NextResponse.json(
+      { error: 'Twilio is not configured. Go to Channels and add your Account SID, Auth Token, and phone number.' },
+      { status: 422 },
+    );
   }
 
   try {
     let result: { sid: string; status: string };
 
     if (channel === 'sms') {
-      result = await sendSms(to, text);
+      result = await sendSms(creds, to, text);
     } else if (channel === 'whatsapp') {
-      result = await sendWhatsApp(to, text);
+      result = await sendWhatsApp(creds, to, text);
     } else {
       return NextResponse.json({ error: `Channel '${channel}' is not yet supported` }, { status: 400 });
     }
@@ -40,7 +58,7 @@ export async function POST(req: NextRequest) {
       data: {
         direction: 'outbound',
         channel,
-        from: process.env.TWILIO_FROM_NUMBER ?? '',
+        from: creds.fromNumber,
         to,
         body: text,
         status: result.status,
@@ -51,7 +69,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ messageId: result.sid, status: result.status, channel, to });
   } catch (err) {
-    console.error('[/api/messages/send]', err);
-    return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[/api/messages/send]', msg);
+    return NextResponse.json({ error: `Twilio error: ${msg}` }, { status: 502 });
   }
 }
