@@ -5,16 +5,18 @@ export interface SessionPayload extends JWTPayload {
   orgId: string;
 }
 
-function getEncodedKey(): Uint8Array {
+function getEncodedKey(): Uint8Array | null {
   const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error('SESSION_SECRET environment variable is not set.');
+  if (!secret) return null;
   return new TextEncoder().encode(secret);
 }
 
 export async function decrypt(session: string | undefined = ''): Promise<SessionPayload | null> {
   if (!session) return null;
   try {
-    const { payload } = await jwtVerify<SessionPayload>(session, getEncodedKey(), {
+    const key = getEncodedKey();
+    if (!key) return null;
+    const { payload } = await jwtVerify<SessionPayload>(session, key, {
       algorithms: ['HS256'],
     });
     return payload;
