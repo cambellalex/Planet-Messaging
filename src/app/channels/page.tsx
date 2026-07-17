@@ -89,8 +89,13 @@ function ConfigureModal({ label, currentMasked, onClose, onSave }: ConfigureModa
           <label className="text-xs font-medium">New {label}</label>
           <input
             ref={inputRef}
-            type="password"
-            autoComplete="new-password"
+            type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-lpignore="true"
+            data-form-type="other"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Enter new value"
@@ -102,8 +107,13 @@ function ConfigureModal({ label, currentMasked, onClose, onSave }: ConfigureModa
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium">Confirm {label}</label>
           <input
-            type="password"
-            autoComplete="new-password"
+            type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-lpignore="true"
+            data-form-type="other"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="Re-enter to confirm"
