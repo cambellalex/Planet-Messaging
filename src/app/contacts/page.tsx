@@ -7,7 +7,6 @@ import {
   X, AlertCircle, Check, ChevronDown, Loader2, Wand2,
 } from 'lucide-react';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
 
 interface Contact {
   id: string;
@@ -254,23 +253,38 @@ function UploadModal({ onClose, onImported }: UploadModalProps) {
 
   function loadFile(file: File) {
     const ext = file.name.split('.').pop()?.toLowerCase();
+    setError('');
     if (ext === 'csv' || ext === 'txt') {
       const reader = new FileReader();
+      reader.onerror = () => setError('Failed to read file.');
       reader.onload = (e) => {
-        const text = e.target?.result as string;
-        const parsed = parseCSVText(text);
-        setRows(parsed);
-        setPasted(text);
+        try {
+          const text = e.target?.result as string;
+          const parsed = parseCSVText(text);
+          setRows(parsed);
+          setPasted(text);
+        } catch {
+          setError('Could not parse the CSV file. Check the format and try again.');
+        }
       };
       reader.readAsText(file);
     } else {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const arr = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }) as string[][];
-        setRows(arr.filter((r) => r.some((c) => c)));
+      reader.onerror = () => setError('Failed to read file.');
+      reader.onload = async (e) => {
+        try {
+          const buffer = e.target?.result;
+          if (!buffer) throw new Error('Empty file');
+          const XLSX = await import('xlsx');
+          const data = new Uint8Array(buffer as ArrayBuffer);
+          const wb = XLSX.read(data, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const arr = XLSX.utils.sheet_to_json<(string | number | boolean)[]>(ws, { header: 1, defval: '' });
+          const strRows = arr.map((r) => r.map((cell) => String(cell ?? '').trim()));
+          setRows(strRows.filter((r) => r.some((c) => c)));
+        } catch (err) {
+          setError('Could not parse the Excel file: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        }
       };
       reader.readAsArrayBuffer(file);
     }
