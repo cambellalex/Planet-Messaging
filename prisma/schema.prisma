@@ -15,6 +15,7 @@ model Organisation {
   users    User[]
   messages Message[]
   channels Channel[]
+  contacts Contact[]
 }
 
 model User {
@@ -36,8 +37,12 @@ model Contact {
   phone          String?
   email          String?
   tags           String[]
+  groupName      String?
+  extraFields    Json?
   organisationId String
   createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
 }
 
 model Message {
