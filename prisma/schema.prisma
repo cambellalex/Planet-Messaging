@@ -18,6 +18,7 @@ model Organisation {
   channels  Channel[]
   contacts  Contact[]
   campaigns Campaign[]
+  apiKeys   ApiKey[]
 }
 
 model User {
@@ -87,6 +88,19 @@ model Channel {
   credentials    Json
   organisationId String
   createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  name           String
+  keyHash        String    @unique
+  keyPrefix      String
+  lastFour       String
+  organisationId String
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime?
 
   organisation Organisation @relation(fields: [organisationId], references: [id])
 }
