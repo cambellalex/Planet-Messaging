@@ -152,7 +152,7 @@ export default function SettingsPage() {
               </div>
 
               <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                Typical Twilio UK rates: SMS {sym}0.04/seg · WhatsApp {sym}0.05 · RCS {sym}0.05 · Email {sym}0.001
+                Defaults include a 12% markup on Twilio UK rates: SMS {sym}0.0448/seg · WhatsApp {sym}0.056 · RCS {sym}0.056 · Email {sym}0.0011
               </p>
             </div>
 

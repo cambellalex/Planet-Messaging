@@ -8,10 +8,10 @@ export interface PricingConfig {
 
 export const DEFAULT_PRICING: PricingConfig = {
   currency: 'GBP',
-  smsPerSegment: 0.04,
-  whatsappPerMessage: 0.05,
-  rcsPerMessage: 0.05,
-  emailPerMessage: 0.001,
+  smsPerSegment: 0.0448,      // Twilio UK rate + 12 %
+  whatsappPerMessage: 0.056,  // Twilio UK rate + 12 %
+  rcsPerMessage: 0.056,       // Twilio UK rate + 12 %
+  emailPerMessage: 0.00112,   // Twilio UK rate + 12 %
 };
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {

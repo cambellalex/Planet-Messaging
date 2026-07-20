@@ -24,6 +24,8 @@ export default function NavBar({ variant = 'home' }: NavBarProps) {
     { href: '/contacts', label: 'Contacts' },
     { href: '/channels', label: 'Channels' },
     { href: '/reports', label: 'Reports' },
+    { href: '/billing', label: 'Billing' },
+    { href: '/faq', label: 'FAQ' },
     { href: '/settings', label: 'Settings' },
   ];
 
