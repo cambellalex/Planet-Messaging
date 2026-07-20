@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth/session-edge';
 
-const PROTECTED_ROUTES = ['/inbox', '/send', '/contacts', '/channels', '/reports'];
+const PROTECTED_ROUTES = ['/inbox', '/send', '/contacts', '/channels', '/reports', '/settings'];
 const AUTH_ROUTES = ['/login', '/register'];
 
 export async function proxy(req: NextRequest) {

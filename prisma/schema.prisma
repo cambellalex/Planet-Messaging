@@ -7,10 +7,11 @@ datasource db {
 }
 
 model Organisation {
-  id        String   @id @default(cuid())
-  name      String
-  plan      String   @default("free")
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  plan          String   @default("free")
+  pricingConfig Json?
+  createdAt     DateTime @default(now())
 
   users     User[]
   messages  Message[]

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import NavBar from '@/components/nav/NavBar';
-import { Download, Loader2, ChevronDown, BarChart2, TrendingUp, Signal } from 'lucide-react';
+import { Download, Loader2, ChevronDown, BarChart2, TrendingUp, Signal, DollarSign } from 'lucide-react';
+import { CURRENCY_SYMBOLS } from '@/lib/pricing';
 
 // Recharts — dynamically imported to avoid SSR issues
 const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), { ssr: false });
@@ -25,6 +26,7 @@ const Cell = dynamic(() => import('recharts').then((m) => m.Cell), { ssr: false 
 interface DailyRow { date: string; sent: number; delivered: number; failed: number }
 interface DeliveryRow { status: string; count: number }
 interface NetworkRow { network: string; count: number }
+interface MonthlySpendRow { month: string; messages: number; cost: number }
 interface Campaign { id: string; name: string; createdAt: string }
 
 const DATE_RANGES = [
@@ -35,10 +37,18 @@ const DATE_RANGES = [
   { label: '1 year', days: 365 },
 ];
 
+const MONTH_RANGES = [
+  { label: '6 months', months: 6 },
+  { label: '12 months', months: 12 },
+  { label: '18 months', months: 18 },
+  { label: '24 months', months: 24 },
+];
+
 const COLORS = {
   sent:      '#3b82f6',
   delivered: '#10b981',
   failed:    '#f87171',
+  spend:     '#a78bfa',
   network:   ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa', '#f87171', '#64748b', '#06b6d4', '#ec4899'],
 };
 
@@ -152,6 +162,25 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
+function SpendTooltip({ active, payload, label, sym }: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+  sym: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl border px-3 py-2 text-xs shadow-lg" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+      {label && <p className="font-medium mb-1" style={{ color: 'var(--foreground)' }}>{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.color }}>
+          {p.name === 'cost' ? 'Cost' : p.name}: <strong>{p.name === 'cost' ? `${sym}${p.value.toFixed(4)}` : p.value.toLocaleString()}</strong>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function ReportsPageInner() {
@@ -162,10 +191,14 @@ function ReportsPageInner() {
   const [dailyData, setDailyData] = useState<DailyRow[] | null>(null);
   const [deliveryData, setDeliveryData] = useState<DeliveryRow[] | null>(null);
   const [networkData, setNetworkData] = useState<NetworkRow[] | null>(null);
+  const [spendData, setSpendData] = useState<MonthlySpendRow[] | null>(null);
+  const [spendCurrency, setSpendCurrency] = useState('GBP');
+  const [spendMonths, setSpendMonths] = useState(12);
 
   const [dailyLoading, setDailyLoading] = useState(true);
   const [deliveryLoading, setDeliveryLoading] = useState(true);
   const [networkLoading, setNetworkLoading] = useState(true);
+  const [spendLoading, setSpendLoading] = useState(true);
 
   // Load campaign list for filter dropdown
   useEffect(() => {
@@ -204,13 +237,30 @@ function ReportsPageInner() {
       .finally(() => setNetworkLoading(false));
   }, [qs]);
 
+  const spendQs = `months=${spendMonths}${campaignId ? `&campaignId=${campaignId}` : ''}`;
+
+  const loadSpend = useCallback(() => {
+    setSpendLoading(true);
+    fetch(`/api/reports/monthly-spend?${spendQs}`)
+      .then((r) => r.json() as Promise<{ currency: string; data: MonthlySpendRow[] }>)
+      .then((d) => { setSpendCurrency(d.currency); setSpendData(d.data); })
+      .catch(() => setSpendData([]))
+      .finally(() => setSpendLoading(false));
+  }, [spendQs]);
+
   useEffect(() => { loadDaily(); }, [loadDaily]);
   useEffect(() => { loadDelivery(); }, [loadDelivery]);
   useEffect(() => { loadNetworks(); }, [loadNetworks]);
+  useEffect(() => { loadSpend(); }, [loadSpend]);
 
   // Format date label compactly
   function fmtDate(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
+
+  function fmtMonth(m: string) {
+    const [year, month] = m.split('-');
+    return new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
   }
 
   // ── Export helpers ──────────────────────────────────────────────────────────
@@ -246,6 +296,21 @@ function ReportsPageInner() {
     void downloadXLSX('networks.xlsx', ['Network', 'Count'], networkData.map((r) => [r.network, r.count]));
   }
 
+  const sym = CURRENCY_SYMBOLS[spendCurrency] ?? spendCurrency + ' ';
+
+  function exportSpendCSV() {
+    if (!spendData) return;
+    downloadCSV('monthly-spend.csv', toCSV(
+      ['Month', 'Messages', `Cost (${spendCurrency})`],
+      spendData.map((r) => [r.month, r.messages, r.cost]),
+    ));
+  }
+  function exportSpendXLSX() {
+    if (!spendData) return;
+    void downloadXLSX('monthly-spend.xlsx', ['Month', 'Messages', `Cost (${spendCurrency})`],
+      spendData.map((r) => [r.month, r.messages, r.cost]));
+  }
+
   // Tick formatter — show every Nth label so the axis isn't crowded
   function tickEvery(data: DailyRow[], idx: number) {
     const step = Math.max(1, Math.ceil(data.length / 10));
@@ -260,6 +325,7 @@ function ReportsPageInner() {
   const hasDailyData = dailyData && dailyData.some((r) => r.sent > 0);
   const hasDelivery = deliveryData && deliveryData.some((r) => r.count > 0);
   const hasNetworks = networkData && networkData.length > 0;
+  const hasSpend = spendData && spendData.some((r) => r.cost > 0);
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
@@ -371,6 +437,50 @@ function ReportsPageInner() {
               <ExportBar onCSV={exportNetworksCSV} onXLSX={exportNetworksXLSX} />
             </Card>
           </div>
+
+          {/* ── 4. Monthly Spend ─────────────────────────────────────────────── */}
+          <Card title={`Monthly Spend (${spendCurrency})`} icon={<DollarSign className="w-4 h-4" />}>
+            <div className="flex items-center justify-end mb-3">
+              <Dropdown
+                value={spendMonths}
+                onChange={(v) => setSpendMonths(v)}
+                options={MONTH_RANGES.map((r) => ({ label: r.label, value: r.months }))}
+              />
+            </div>
+            {spendLoading ? <ChartLoader /> : !hasSpend ? (
+              <EmptyChart msg="No spend data for this period" />
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={spendData!} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      tickFormatter={fmtMonth}
+                      tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tickFormatter={(v: number) => `${sym}${v.toFixed(2)}`}
+                      tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={64}
+                    />
+                    <Tooltip content={<SpendTooltip sym={sym} />} />
+                    <Bar dataKey="cost" name="cost" fill={COLORS.spend} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
+                  Total over period: <strong>{sym}{spendData!.reduce((s, r) => s + r.cost, 0).toFixed(2)}</strong>
+                  {' '}across <strong>{spendData!.reduce((s, r) => s + r.messages, 0).toLocaleString()}</strong> messages.
+                  Rates configurable in <a href="/settings" className="underline hover:opacity-80">Settings</a>.
+                </p>
+              </>
+            )}
+            <ExportBar onCSV={exportSpendCSV} onXLSX={exportSpendXLSX} />
+          </Card>
 
         </div>
       </main>
