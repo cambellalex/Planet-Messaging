@@ -23,6 +23,7 @@ export default function NavBar({ variant = 'home' }: NavBarProps) {
     { href: '/send', label: 'Send' },
     { href: '/contacts', label: 'Contacts' },
     { href: '/channels', label: 'Channels' },
+    { href: '/reports', label: 'Reports' },
   ];
 
   return (
