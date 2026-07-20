@@ -12,10 +12,11 @@ model Organisation {
   plan      String   @default("free")
   createdAt DateTime @default(now())
 
-  users    User[]
-  messages Message[]
-  channels Channel[]
-  contacts Contact[]
+  users     User[]
+  messages  Message[]
+  channels  Channel[]
+  contacts  Contact[]
+  campaigns Campaign[]
 }
 
 model User {
@@ -46,18 +47,36 @@ model Contact {
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   direction      String
   channel        String
   from           String
   to             String
   body           String
-  status         String   @default("queued")
+  status         String    @default("queued")
   twilioSid      String?
+  organisationId String
+  campaignId     String?
+  createdAt      DateTime  @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  campaign     Campaign?    @relation(fields: [campaignId], references: [id])
+}
+
+model Campaign {
+  id             String   @id @default(cuid())
+  name           String
+  channel        String
+  body           String
+  status         String   @default("complete")
+  totalCount     Int      @default(0)
+  sentCount      Int      @default(0)
+  failedCount    Int      @default(0)
   organisationId String
   createdAt      DateTime @default(now())
 
   organisation Organisation @relation(fields: [organisationId], references: [id])
+  messages     Message[]
 }
 
 model Channel {
